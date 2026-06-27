@@ -52,3 +52,8 @@ Release-As: 1.32.13-lts.1
 ```
 
 Then run **Release Please**; the Release PR will propose `v1.32.13-lts.1`.
+
+## v1.32.13-lts.5
+
+Base-image refresh only (kube-proxy distroless-iptables v0.6.7 -> v0.7.15 in the
+build repo) to clear OS-package CVEs. No source change from lts.4.
