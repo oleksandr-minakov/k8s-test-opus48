@@ -1,0 +1,71 @@
+name: Release Please
+
+# Dispatch-only (the cascade is not yet trusted to auto-fire). Once proven,
+# add:
+#   push:
+#     branches: ['release-*']
+#     paths: [version.txt]
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # Stage 1: cut the LTS tag + GitHub Release from merged conventional commits.
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name:        ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Flat-version tags (vX.Y.Z-lts.N), no component prefix. 'simple'
+          # owns version.txt + CHANGELOG.md directly (no package manifest).
+          release-type: simple
+          target-branch: release-1.32
+
+  # Stage 2: when a release was cut, open the cross-repo VERSION bump PR in the
+  # build repo. Needs a PAT with write on the build repo (BUILD_REPO_TOKEN);
+  # if absent we warn and exit 0 so the release itself still succeeds.
+  bump-build-repo:
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      BUILD_REPO: oleksandr-minakov/control-repo-test-opus48
+      BUILD_BRANCH: release-1.32
+      TAG: ${{ needs.release.outputs.tag_name }}
+      GH_TOKEN: ${{ secrets.BUILD_REPO_TOKEN }}
+    steps:
+      - name: Open VERSION bump PR in build repo
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::BUILD_REPO_TOKEN not set — skipping cross-repo bump PR for ${TAG}."
+            exit 0
+          fi
+          branch="chore/version-${TAG}"
+          tmp="$(mktemp -d)"
+          git clone --depth=1 --branch "${BUILD_BRANCH}" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${BUILD_REPO}.git" "$tmp"
+          cd "$tmp"
+          git checkout -b "$branch"
+          printf '%s\n' "${TAG}" > VERSION
+          git -c user.name='dtag-bot' -c user.email='dtag-bot@users.noreply.github.com' \
+            commit -am "chore: bump VERSION to ${TAG}"
+          git push -u origin "$branch"
+          cat > /tmp/body.md <<'BODY'
+          Automated VERSION bump from the source-fork LTS release.
+
+          Merging this fires `build.yaml` (Path B / LTS), which builds the six
+          components from the fork at this tag and publishes to the `lts-k8s`
+          ghcr namespace.
+          BODY
+          gh pr create --repo "${BUILD_REPO}" --base "${BUILD_BRANCH}" --head "$branch" \
+            --title "chore: bump VERSION to ${TAG}" --body-file /tmp/body.md

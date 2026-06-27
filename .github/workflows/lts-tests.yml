@@ -1,0 +1,60 @@
+name: lts-tests
+
+# Per-PR validation for the LTS line. Vendored, hermetic (GOPROXY=off): no
+# network, no toolchain download, no git VCS stamping.
+on:
+  push:
+    branches: ['release-*']
+    paths-ignore: ['**.md', 'docs/**', 'version.txt', 'CHANGELOG.md']
+  pull_request:
+    branches: ['release-*']
+    paths-ignore: ['**.md', 'docs/**', 'version.txt', 'CHANGELOG.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOFLAGS: -mod=vendor -trimpath -buildvcs=false
+  GOPROXY: off
+  GOSUMDB: off
+  GOTOOLCHAIN: local
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - kube-apiserver
+          - kube-controller-manager
+          - kube-scheduler
+          - kube-proxy
+          - kubelet
+          - kubectl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: go test ./cmd/${{ matrix.component }}/...
+        run: go test "./cmd/${{ matrix.component }}/..."
+
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: Compile-check all six components
+        run: |
+          set -euo pipefail
+          for c in kube-apiserver kube-controller-manager kube-scheduler \
+                   kube-proxy kubelet kubectl; do
+            echo "==> go build ./cmd/$c"
+            go build -o /dev/null "./cmd/$c"
+          done
