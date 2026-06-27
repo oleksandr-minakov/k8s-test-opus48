@@ -2,7 +2,7 @@
 
 module k8s.io/externaljwt
 
-go 1.23.0
+go 1.25.0
 
 godebug default=go1.23
 
@@ -15,8 +15,8 @@ require (
 )
 
 require (
-	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240826202546-f6391c0de4c7 // indirect
 )
