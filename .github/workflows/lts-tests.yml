@@ -1,7 +1,15 @@
 name: lts-tests
 
-# Per-PR validation for the LTS line. Vendored, hermetic (GOPROXY=off): no
-# network, no toolchain download, no git VCS stamping.
+# Per-PR / per-release validation for the LTS line. Vendored, hermetic
+# (GOPROXY=off): no module network, no toolchain download, no git VCS stamping.
+#
+# Gate tiers (mirrors upstream's release-blocking unit+integration, plus a
+# cluster smoke for the artifacts that unit/integration don't exercise):
+#   unit       - per-component cmd unit tests (fast)
+#   unit-core  - focused library trees that exercise the patched surfaces
+#                (net/http, crypto/tls, crypto/x509, serialization)
+#   integration- real kube-apiserver + etcd CRUD/auth (test/integration)
+#   compile    - all six components build
 on:
   push:
     branches: ['release-*']
@@ -41,6 +49,49 @@ jobs:
           cache: false
       - name: go test ./cmd/${{ matrix.component }}/...
         run: go test "./cmd/${{ matrix.component }}/..."
+
+  # Widened unit: library trees most affected by a toolchain/dependency bump.
+  unit-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: go test (net/tls/x509/serialization-heavy trees)
+        run: |
+          go test -timeout 30m \
+            ./pkg/proxy/iptables/... \
+            ./pkg/proxy/config/... \
+            ./pkg/kubelet/server/... \
+            ./pkg/kubelet/certificate/... \
+            ./pkg/registry/core/secret/... \
+            ./pkg/scheduler/framework/...
+
+  # Real apiserver + etcd: CRUD + serviceaccount token (crypto) path.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: Install etcd + jq
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y jq
+          ./hack/install-etcd.sh
+          echo "$PWD/third_party/etcd" >> "$GITHUB_PATH"
+      - name: go test ./test/integration (apiserver+etcd)
+        run: |
+          set -euo pipefail
+          etcd --version | head -1
+          go test -timeout 40m -count=1 \
+            ./test/integration/configmap/... \
+            ./test/integration/secrets/... \
+            ./test/integration/serviceaccount/...
 
   compile:
     runs-on: ubuntu-latest
