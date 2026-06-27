@@ -7,7 +7,7 @@ Flat-version tags only: **`vX.Y.Z-lts.N`** (e.g. `v1.32.13-lts.0`).
 - `X.Y.Z` tracks the upstream patch we forked from (`v1.32.13`).
 - `-lts.N` is the Mirantis LTS counter, incremented per LTS release.
 - No component prefix in the tag — component identity lives in the **image
-  registry path** (`ghcr.io/oleksandr-minakov/lts-k8s/<component>`), not the tag.
+  registry path** (`ghcr.io/oleksandr-minakov/lts-k8s-opus48/<component>`), not the tag.
   (Component-prefixed tags require release-please manifest mode, which has open
   upstream bugs.)
 
