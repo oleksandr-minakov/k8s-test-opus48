@@ -72,6 +72,11 @@ jobs:
   # Real apiserver + etcd: CRUD + serviceaccount token (crypto) path.
   integration:
     runs-on: ubuntu-latest
+    # The in-process apiserver test server resolves source-relative paths at
+    # runtime, which -trimpath breaks ("can't construct an absolute path").
+    # Upstream make test-integration never trimpaths; drop it here too.
+    env:
+      GOFLAGS: -mod=vendor -buildvcs=false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
