@@ -32,3 +32,5 @@ func main() {
 		util.CheckErr(err)
 	}
 }
+
+// LTS: simulated security backport placeholder (no functional change).
